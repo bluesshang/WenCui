@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "D:\...\flexgrid_aspx\", "..\flexgrid_aspx", "{E62F7F80-9DF0-48EC-97ED-2E799164AA1E}"
+	ProjectSection(WebsiteProperties) = preProject
+		Debug.AspNetCompiler.VirtualPath = "/flexgrid_aspx"
+		Debug.AspNetCompiler.PhysicalPath = "..\flexgrid_aspx\"
+		Debug.AspNetCompiler.TargetPath = "PrecompiledWeb\flexgrid_aspx\"
+		Debug.AspNetCompiler.Updateable = "true"
+		Debug.AspNetCompiler.ForceOverwrite = "true"
+		Debug.AspNetCompiler.FixedNames = "false"
+		Debug.AspNetCompiler.Debug = "True"
+		Release.AspNetCompiler.VirtualPath = "/flexgrid_aspx"
+		Release.AspNetCompiler.PhysicalPath = "..\flexgrid_aspx\"
+		Release.AspNetCompiler.TargetPath = "PrecompiledWeb\flexgrid_aspx\"
+		Release.AspNetCompiler.Updateable = "true"
+		Release.AspNetCompiler.ForceOverwrite = "true"
+		Release.AspNetCompiler.FixedNames = "false"
+		Release.AspNetCompiler.Debug = "False"
+		VWDPort = "30345"
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|.NET = Debug|.NET
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E62F7F80-9DF0-48EC-97ED-2E799164AA1E}.Debug|.NET.ActiveCfg = Debug|.NET
+		{E62F7F80-9DF0-48EC-97ED-2E799164AA1E}.Debug|.NET.Build.0 = Debug|.NET
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
