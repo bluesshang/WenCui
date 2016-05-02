@@ -16,34 +16,70 @@
 
 <script runat="server">
 
-    protected void Page_Load(object sender, EventArgs e)
+    protected void Page_Load(object sender, EventArgs args)
     {
-        string items = Request["usr_data"];
+        string bizData = Request["usr_data"];
 
-        DataParser dp = DataParser.GetParser(items);
+        DataParagrapher paragraph = new DataParagrapher();
+
+        int count = paragraph.DoParagraph(bizData);
+        
         DataRecordItem dri = new DataRecordItem();
-        dp.Parse(items, ref dri);
-        
-        
-        if (items != null)
-        {
-            
-            string json = "";
 
-            json = "{\"text\":\"accused:" + dri.accused + ", accuser:" + dri.accuser
-                + ", court:" + dri.court + ", court-room:" + dri.court_room 
-                + ", telephone:" + dri.telephone + ", case-title:" + dri.case_title + "\", len:0}";
-                        
-            
-            /*json += "{\n";
-            json += "\"text\": \"" + items.Replace("\n", "<li>").ToUpper() + "\",\n";
-            json += "len: " + items.Length + ",\n";
-            json += "}\n";*/
-            Response.Write(json);
-        }
-        else
+        string json = "{\n"
+            + "  \"count\": \"" + count + "\",\n"
+            + "  \"records\": [\n";
+
+        for (int i = 0; i < count; i++)
         {
-            Response.Write("{query:'none',total:0,}");
+            DataParagraph para = paragraph.paragraphs[i];
+            
+            int status;
+            string message;
+            
+            try
+            {
+                char[] trimChars = { '\r', ' ', '.', '¡£', ';', '£»' };
+                string data = para.text
+                    .Trim(trimChars)
+                    .Replace("\r\n", "")
+                    .Replace("\n", "");
+                
+                DataParser dp = DataParser.GetParser(data);
+
+                dri.Reset();
+                dp.Parse(data, ref dri);
+
+                status = 0;
+                message = "OK";
+            }
+            catch (Exception e)
+            {
+                status = 1;
+                message = "½âÎö³öÏÖ´íÎó:" + e.Message.Replace("\r\n", "<br>");
+            }
+
+            json += "{"
+                + "\"accused\":\"" + dri.accused + "\""
+                + ", \"accuser\":\"" + dri.accuser + "\""
+                + ", \"court\":\"" + dri.court + "\""
+                + ", \"courtroom\":\"" + dri.court_room + "\""
+                + ", \"telephone\":\"" + dri.telephone + "\""
+                + ", \"title\":\"" + dri.case_title + "\""
+                + ", \"status\":\"" + status + "\""
+                + ", \"message\":\"" + message + "\""
+                + ", \"para\":{"
+                    + "\"begin\":\"" + para.begin + "\""
+                    + ", \"end\":\"" + para.end + "\""
+                    + ", \"text\":\"" + para.text
+                        .Replace("\r\n", "<br>")
+                        .Replace("\n", "<br>") + "\""
+                    + "}"
+                + "},\n";
         }
+        
+        json += "]}";
+        
+        Response.Write(json);
      }
 </script>

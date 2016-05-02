@@ -1,6 +1,6 @@
 
 using System;
-
+using System.Collections.Generic;
 
 public enum NoticeType : int
 {
@@ -34,7 +34,7 @@ public class DataRecordItem
     public string memo;
     public string case_title; // 案件名称
 
-    public DataRecordItem()
+    public void Reset()
     {
         accused = "";
         accuser = "";
@@ -45,6 +45,14 @@ public class DataRecordItem
         clerk = "";
         memo = "";
         case_title = "";
+    }
+    public void MakeJson()
+    {
+        accused.Replace("\n", "<br>");
+    }
+    public DataRecordItem()
+    {
+        Reset();
     }
 }
 
@@ -79,25 +87,45 @@ public abstract class DataParser
     public static StringHitPos IndexOfAny(string data, string anyOf, int startPos = 0)
     {
         string[] opts = anyOf.Split('|');
+        List<StringHitPos> hitPos = new List<StringHitPos>(opts.Length);
+
         for (int k = 0; k < opts.Length; k++)
         {
             int pos;
-            if ((pos = data.IndexOf(opts[k])) != -1)
+            if ((pos = data.IndexOf(opts[k], startPos)) != -1)
             {
-                return new StringHitPos(pos, opts[k].Length);
+                hitPos.Add(new StringHitPos(pos, opts[k].Length));
+                //return new StringHitPos(pos, opts[k].Length);
             }
         }
 
-        return new StringHitPos(-1, 0);
+        if (hitPos.Count == 0)
+            return new StringHitPos(-1, 0);
+
+        int bestPos = data.Length, selHitPos = -1;
+        for (int i = 0; i < hitPos.Count; i++)
+        {
+            if (hitPos[i].pos < bestPos)
+            {
+                selHitPos = i;
+                bestPos = hitPos[i].pos;
+            }
+        }
+
+        return new StringHitPos(hitPos[selHitPos].pos, hitPos[selHitPos].hitlen);
     }
 
-    public static StringHitPos LastIndexOfAny(string data, string anyOf, int startPos)
+    public static StringHitPos LastIndexOfAny(string data, string anyOf, int startPos = -1)
     {
         string[] opts = anyOf.Split('|');
         for (int k = 0; k < opts.Length; k++)
         {
             int pos;
-            if ((pos = data.LastIndexOf(opts[k], startPos)) != -1)
+            if (startPos == -1)
+                pos = data.LastIndexOf(opts[k]);
+            else pos = data.LastIndexOf(opts[k], startPos);
+
+            if (pos != -1)
             {
                 return new StringHitPos(pos, opts[k].Length);
             }
@@ -166,8 +194,14 @@ public abstract class DataParser
     {
         return c >= '0' && c <= '9' ? true : false;
     }
-    public static string GetTelephone(string data, int pos)
+    public static string ExtractTelephone(string data)
     {
+        StringHitPos posHit = IndexOfAny(data, "联系电话：|联系电话:|联系电话|电话：|电话:");
+
+        if (posHit.pos == -1)
+            return "";
+
+        int pos = posHit.pos;
         string tel = "";
         string t = data.Substring(pos).Replace(" ", "");
 
@@ -187,24 +221,66 @@ public abstract class DataParser
         return tel;
     }
 
+    public static string ExtractCourt(string data)
+    {
+        StringHitPos hp = LastIndexOfAny(data, "人民法院|法院");
+
+        if (hp.pos == -1)
+            throw new Exception("未能正确解析\"法院\"字段：没有找到相应的关键字。");
+
+        char[] delimiterChars = { '。', '\n', '.', ';', '；', ',', '，' };
+        int posBegin = data.LastIndexOfAny(delimiterChars, hp.pos);
+        if (posBegin == -1)
+            throw new Exception("未能正确解析\"法院\"字段。");
+
+        return data.Substring(posBegin + 1, hp.pos + hp.hitlen - (posBegin + 1))
+            .Trim(delimiterChars);
+    }
     public static string Extract(string data, string beginExpr, string endExpr, bool optional = false)
     {
         StringHitPos pos1, pos2;
+        int begin, end, offset = 0;
+        int keypos = 0;
 
-        pos1 = IndexOfAny(data, beginExpr);
-        if (endExpr[0] == '^')
-            pos2 = LastIndexOfAny(data, endExpr, pos1.pos);
-        else pos2 = IndexOfAny(data, endExpr, pos1.pos);
-
-        if (pos1.pos == -1 || pos2.pos == -1
-            || pos1.pos + pos1.hitlen > pos2.pos)
+        for (; ; )
         {
-            if (optional == true)
-                return "";
+            pos1 = IndexOfAny(data, beginExpr, keypos);
+            if (pos1.pos == -1)
+                break;
+            keypos = pos1.pos + pos1.hitlen;
 
-            throw new ArgumentException("未能解析表达式：{" + beginExpr + "," + endExpr + "}，请确定输入是否符合常用格式。");
+            if (endExpr[0] == '^')
+            {   // backforward match
+                string endExprTmp = endExpr.Substring(1); // trim the '^'
+                if (endExprTmp.Length == 0)
+                    begin = 0;
+                else
+                {
+                    pos2 = LastIndexOfAny(data, endExprTmp, pos1.pos);
+                    begin = pos2.pos;
+                    offset = pos2.hitlen;
+                }
+                end = pos1.pos;
+            }
+            else
+            {
+                pos2 = IndexOfAny(data, endExpr, pos1.pos);
+                begin = pos1.pos;
+                offset = pos1.hitlen;
+                end = pos2.pos;
+            }
+
+            if (begin != -1 && end != -1
+                && begin + offset <= end)
+            {
+                return data.Substring(begin + offset, end - (begin + offset)).Trim();
+            }
         }
-        return data.Substring(pos1.pos + pos1.hitlen, pos2.pos).Trim();
+
+        if (optional == true)
+            return "";
+
+        throw new Exception("未能解析表达式：{" + beginExpr + "," + endExpr + "}，请确定输入是否符合常用格式。");
     }
 }
 
@@ -212,31 +288,21 @@ public class OpeningParser : DataParser
 {
     public override bool Parse(string data, ref DataRecordItem dri)
     {
-        StringHitPos pos1, pos2;
+        dri.accused = Extract(data, "本院受理原告|本委受理原告|本院受理|本委受理|本院定于|本院于", "^");
+        dri.accused = dri.accused.Replace("：", "");
 
-        pos2 = IndexOfAny(data, "本院受理|本委受理");
-        if (pos2.pos == -1)
-            return false;
+        dri.accuser = Extract(data, "本院受理原告|本委受理原告|本院受理|本委受理|本院定于|本院于", "诉|与");
+        int pos = dri.accuser.IndexOf("原告");
+        if (pos != -1)
+            dri.accuser = dri.accuser.Substring(pos + 2);
 
-        dri.accused = data.Substring(0, pos2.pos).Trim().Replace("：", "");
+        dri.case_title = Extract(data, "诉被告你们|诉被告|诉你们|诉你方|诉你|及你们|与你司|与你们|与你|诉", "一案", true);
 
-        dri.accuser = Extract(data, "本院受理原告|本委受理原告|本院受理|本委受理", "诉|与");
-        pos1 = IndexOfAny(dri.accuser, "原告");
-        if (pos1.pos != -1)
-            dri.accuser = dri.accuser.Substring(pos1.pos + pos1.hitlen);
+        dri.court_room = Extract(data, "公开开庭审理|开庭审理|公开审理|开庭", "^在");
 
-        dri.case_title = Extract(data, "诉你们|诉你|及你们|与你司|诉", "一案", true);
+        dri.court = ExtractCourt(data);
 
-        dri.court_room = Extract(data, "开庭审理|公开审理", "^在");
-
-        char[] delimiterChars = { '。', '\n', '.' };
-        pos2.pos = data.Length;
-        pos1 = LastIndexOfAny(data, delimiterChars, pos2.pos - 2); // TODO: LastIndexOfAny
-        dri.court = Substring(data, pos1.pos + 1, pos2.pos).Trim().Replace("\n", "");
-
-        pos1 = IndexOfAny(data, "联系电话：|联系电话:|联系电话|电话：|电话:");
-        if (pos1.pos != -1)
-            dri.telephone = GetTelephone(data, pos1.pos + pos1.hitlen);
+        dri.telephone = ExtractTelephone(data);
 
         dri.type = NoticeType.OPENING;
 
@@ -246,5 +312,52 @@ public class OpeningParser : DataParser
 
 public class UnknownParser : DataParser
 {
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        throw new Exception("该类业务数据当前未能识别");
+    }
+}
 
+public class DataParagraph
+{
+    public string text;
+    public int begin, end;
+};
+
+public class DataParagrapher
+{
+    //public DataParagraph[] paragraphs;
+    public List<DataParagraph> paragraphs = new List<DataParagraph>();
+
+    public int DoParagraph(string data)
+    {
+        StringHitPos hp0, hp1;
+        int begin = 0, end;
+
+        for (; ; )
+        {
+            hp0 = DataParser.IndexOfAny(data, "本院受理|本委受理|本院定于|本院于", begin);
+            if (hp0.pos == -1)
+                break;
+
+            hp1 = DataParser.IndexOfAny(data, "本院受理|本委受理|本院定于|本院于", hp0.pos + hp0.hitlen);
+            if (hp1.pos != -1) {
+                char[] paraChars = { '\n' };
+                end = data.LastIndexOfAny(paraChars, hp1.pos);
+            } else { end = data.Length; }
+
+            if (end > begin)
+            {
+                DataParagraph dp = new DataParagraph();
+                dp.begin = begin;
+                dp.end = end;
+                dp.text = data.Substring(begin, end - begin);
+                paragraphs.Add(dp);
+            }
+
+            begin = end;
+        }
+
+        return paragraphs.Count;
+    }
 }

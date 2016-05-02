@@ -98,10 +98,36 @@ $(document).ready(function(){
             dataType:'json',  
             success: function (data) {
                 //alert('return data len' + data.len);
-                $("#proc_info").html('return data is ' + data.len + ':<br><br>' + data.text);
+                var text = "<b>Total " + data.records.length + " records.</b><br><table border=1>";
+                //alert(data.count + ", records:" + data.records.length);
+                var count = data.records.length;
+                for (i = 0; i < count; i++)
+                {
+                    //alert(data.records[i].accused);
+                    text += "<tr>";
+                    text += "<td colspan=8>[" + data.records[i].para.begin + "," + data.records[i].para.end + "]" + data.records[i].para.text + "</td>";
+                    text += "</tr>";
+
+                    if (data.records[i].status == 0)
+                        color = "#c5ede8";
+                    else color = "#ff0000"
+
+                    text += "<tr style=\"background-color:" + color + "\">";
+                    text += "<td>" + data.records[i].accused + "</td>";
+                    text += "<td>" + data.records[i].accuser + "</td>";
+                    text += "<td>" + data.records[i].court + "</td>";
+                    text += "<td>" + data.records[i].courtroom + "</td>";
+                    text += "<td>" + data.records[i].telephone + "</td>";
+                    text += "<td>" + data.records[i].title + "</td>";
+                    text += "<td>" + data.records[i].status + "</td>";
+                    text += "<td>" + data.records[i].message + "</td>";
+                    text += "</tr>";
+                }
+                text += "</table>"
+                $("#proc_info").html(text);
             },
 	        error: function(err) {
-	            alert(err);
+	            alert(err.message);
 	        }
 	    });  
 	});
@@ -172,9 +198,12 @@ function test(com,grid)
 <a href="#">Download this example</a>
 
     <form id="form1">
-        <textarea id="usr_data" name="usr_data"></textarea><br />
+        <textarea id="usr_data" name="usr_data" style="height: 221px; width: 891px"></textarea><br />
         <input type="button" value="ok" id="btk_ok" />
         <div id="proc_info"></div>
     </form>
+    <table>
+        <tr style="background-color:#c5ede8"></tr>
+    </table>
 </body>
 </html>
