@@ -108,8 +108,14 @@ $(document).ready(function(){
                     text += "<td colspan=8>[" + data.records[i].para.begin + "," + data.records[i].para.end + "]" + data.records[i].para.text + "</td>";
                     text += "</tr>";
 
-                    if (data.records[i].status == 0)
+                    if (data.records[i].status == 0) {
                         color = "#c5ede8";
+                        if (data.records[i].accused == ""
+                            || data.records[i].accuser == "")
+                            color = "#ffff00";
+                    }
+                    else if (data.records[i].status == 2)
+                        color = "#808080";
                     else color = "#ff0000"
 
                     text += "<tr style=\"background-color:" + color + "\">";
@@ -126,8 +132,8 @@ $(document).ready(function(){
                 text += "</table>"
                 $("#proc_info").html(text);
             },
-	        error: function(err) {
-	            alert(err.message);
+	        error: function(err, message) {
+	            alert(message);
 	        }
 	    });  
 	});

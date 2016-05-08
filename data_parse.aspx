@@ -34,7 +34,7 @@
         {
             DataParagraph para = paragraph.paragraphs[i];
             
-            int status;
+            ParseError status;
             string message;
             
             try
@@ -45,17 +45,18 @@
                     .Replace("\r\n", "")
                     .Replace("\n", "");
                 
+                dri.Reset();
+                
                 DataParser dp = DataParser.GetParser(data);
 
-                dri.Reset();
                 dp.Parse(data, ref dri);
 
-                status = 0;
+                status = ParseError.Okay;
                 message = "OK";
             }
-            catch (Exception e)
+            catch (DataParseException e)
             {
-                status = 1;
+                status = e.code;
                 message = "½âÎö³öÏÖ´íÎó:" + e.Message.Replace("\r\n", "<br>");
             }
 
@@ -66,8 +67,8 @@
                 + ", \"courtroom\":\"" + dri.court_room + "\""
                 + ", \"telephone\":\"" + dri.telephone + "\""
                 + ", \"title\":\"" + dri.case_title + "\""
-                + ", \"status\":\"" + status + "\""
-                + ", \"message\":\"" + message + "\""
+                + ", \"status\":\"" + (int)status + "\""
+                + ", \"message\":\"" + message.Replace("\"", "\\\"") + "\""
                 + ", \"para\":{"
                     + "\"begin\":\"" + para.begin + "\""
                     + ", \"end\":\"" + para.end + "\""
