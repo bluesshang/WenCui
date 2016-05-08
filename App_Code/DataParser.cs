@@ -176,27 +176,31 @@ public abstract class DataParser
             throw new DataParseException(ParseError.TooShort, "信息太少，无法自动解析。");
 
         PredefinedTypes[] types = {
-            new PredefinedTypes(NoticeType.OPENING, "开庭审理|开庭受理|公开审理"),
+            new PredefinedTypes(NoticeType.OPENING, "(开庭审理|开庭受理|公开审理|在(.+)开庭[.。;；,，])"),
         };
 
         for (int i = 0; i < types.Length; i++)
         {
-            bool matched = true;
-            string[] dnas = types[i].dna.Split(';');
+            // bool matched = false;
+            //string[] dnas = types[i].dna.Split('|');
 
-            for (int j = 0; j < dnas.Length; j++)
-            {
-                if (IndexOfAny(data, dnas[j]).pos == -1)
+            //for (int j = 0; j < dnas.Length; j++)
+            //{
+            Regex reg = new Regex(types[i].dna);
+
+                Match m = reg.Match(data);
+
+                //if (IndexOfAny(data, dnas[j]).pos == -1)
+                if (m.Groups.Count > 1)
                 {
-                    matched = false;
-                    break;
+                    return types[i].type;
                 }
-            }
+            //}
 
-            if (matched == true)
-            {
-                return types[i].type;
-            }
+            //if (matched == true)
+            //{
+            //    return types[i].type;
+            //}
         }
 
         return NoticeType.UNKNOWN;
@@ -349,10 +353,11 @@ public class OpeningParser : DataParser
     public override bool Parse(string data, ref DataRecordItem dri)
     {
         string[] part1 = {
-            "(?<accused>.+)(：|:)(本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|原告)(?<accuser>.+?)(诉被告你们|诉被告|诉你方|诉你们|诉你|与你司|与你们|与你及|与你|诉)(?<case_title>.+?)一案",
-            "(?<accused>.+)(：|:)(?<accuser>.+?)(诉你方|诉你们|诉你|诉)(?<case_title>.+?)一案",
-            "(本院定于|本院于)(.+)原告(?<accuser>.+)(诉被告|诉你方|诉你们|诉你|诉)(?<accused>.+)一案",
-            "(?<accused>.+)(：|:)本院受理(?<accuser>.+?)及你(?<case_title>.+?)一案",
+            @"(?<accused>.+)(：|:)(本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|原告)(?<accuser>.+?)(诉被告你们|诉被告|诉你方|诉你们|与被告|与你司|与你们|与你及|诉你及|诉你与|诉你|与你|诉|与)(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
+            @"(?<accused>.+)(：|:)(?<accuser>.+?)(诉你方|诉你们|诉你|与你|诉)(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
+            @"(本院定于|本院于)(.+)原告(?<accuser>.+)(诉被告|诉你方|诉你们|诉你|诉)(?<accused>.+)([一二三四五六七八九]|\d+)案",
+            @"(?<accused>.+)(：|:)本院受理(?<accuser>.+?)及你(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
+            @"(?<accused>.+)(：|:)本院定于(.+?)原告(?<accuser>.+?)诉被告(.+)(?<case_title>保证合同纠纷|民间借贷纠纷|物业服务合同纠纷|买卖合同纠纷)"
         };
 
         Match m = Expr(data, part1);

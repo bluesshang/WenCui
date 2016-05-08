@@ -16,17 +16,38 @@
 
 <script runat="server">
 
+   
     protected void Page_Load(object sender, EventArgs args)
     {
+        if (Request["get_status"] == "true")
+        {
+            Response.Write("{\"number\":\"" + Application["_ok_records"]
+                + "\",\"error\":\"" + Application["_error_records"]
+                + "\",\"total\":\"" + Application["_total_records"] + "\"}");
+            return;
+        }
+
         string bizData = Request["usr_data"];
 
         DataParagrapher paragraph = new DataParagrapher();
 
+        int ok = 0, err = 0;
         int count = paragraph.DoParagraph(bizData);
+
+        //_processed_records = 0;
+        //_total_records = count;
+        Application["_ok_records"] = 0;
+        Application["_error_records"] = 0;
+        Application["_total_records"] = count;
+        //Response.ContentType = "text/plain";
+        //Response.Write("{\"type\":\"status\",\"message\":\"total " + count + "paragraphs will be processed.\"}");
+        //Response.Flush();
+        //Response.End();
         
         DataRecordItem dri = new DataRecordItem();
 
         string json = "{\n"
+            + "  \"type\": \"data\",\n"
             + "  \"count\": \"" + count + "\",\n"
             + "  \"records\": [\n";
 
@@ -53,11 +74,15 @@
 
                 status = ParseError.Okay;
                 message = "OK";
+                //_processed_records += 1;
+
+                Application["_ok_records"] = ++ok;
             }
             catch (DataParseException e)
             {
                 status = e.code;
                 message = "½âÎö³öÏÖ´íÎó:" + e.Message.Replace("\r\n", "<br>");
+                Application["_error_records"] = ++err;
             }
 
             json += "{"

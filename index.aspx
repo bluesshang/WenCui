@@ -88,8 +88,34 @@ $(document).ready(function(){
 			}
 			);
 
+
 	$("#btk_ok").bind('click', function () {
 	    //alert($("#form1").serialize());
+	    $("#proc_info").html("");
+	    $("#proc_status").html("committing data ...");
+
+	    var pb_timer = setInterval(function () {
+	        var text = "";
+	        $.ajax({
+	            type: 'post',
+	            url: 'data_parse.aspx',
+	            data: "get_status=true",
+	            cache: false,
+	            dataType: 'json',
+	            success: function (data) {
+	                text = data.number + " of " + data.total + " processed, " + data.error + " errors";
+	                if (data.number > 0 && eval(data.number) + eval(data.error) == eval(data.total)) {
+	                    clearInterval(pb_timer);
+	                    text += " done!";
+	                } else text += ", please wait for a moment ...";
+	                $("#proc_status").html(text);
+	            },
+	            error: function (o, message) {
+	                $("#proc_status").html(message);
+	            }
+	        });
+	    }, 1000);
+
 	    $.ajax({  
 	        type:'post',      
             url:'data_parse.aspx',  
@@ -97,42 +123,46 @@ $(document).ready(function(){
             cache:false,  
             dataType:'json',  
             success: function (data) {
-                //alert('return data len' + data.len);
-                var text = "<b>Total " + data.records.length + " records.</b><br><table border=1>";
-                //alert(data.count + ", records:" + data.records.length);
-                var count = data.records.length;
-                for (i = 0; i < count; i++)
-                {
-                    //alert(data.records[i].accused);
-                    text += "<tr>";
-                    text += "<td colspan=8>[" + data.records[i].para.begin + "," + data.records[i].para.end + "]" + data.records[i].para.text + "</td>";
-                    text += "</tr>";
+                if (data.type == "status") {
+                    $("#proc_info").html(data.message);
+                } else {
+                    //alert('return data len' + data.len);
+                    var text = "<b>Total " + data.records.length + " records.</b><br><table border=1>";
+                    //alert(data.count + ", records:" + data.records.length);
+                    var count = data.records.length;
+                    for (i = 0; i < count; i++) {
+                        //alert(data.records[i].accused);
+                        var para = data.records[i].para;
+                        text += "<tr>";
+                        text += "<td colspan=8>[" + para.begin + "," + para.end + "]" + para.text + "</td>";
+                        text += "</tr>";
 
-                    if (data.records[i].status == 0) {
-                        color = "#c5ede8";
-                        if (data.records[i].accused == ""
-                            || data.records[i].accuser == "")
-                            color = "#ffff00";
+                        if (data.records[i].status == 0) {
+                            color = "#c5ede8";
+                            if (data.records[i].accused == ""
+                                || data.records[i].accuser == "")
+                                color = "#ffff00";
+                        }
+                        else if (data.records[i].status == 2)
+                            color = "#808080";
+                        else color = "#ff0000"
+
+                        text += "<tr style=\"background-color:" + color + "\">";
+                        text += "<td>" + data.records[i].accused + "</td>";
+                        text += "<td>" + data.records[i].accuser + "</td>";
+                        text += "<td>" + data.records[i].court + "</td>";
+                        text += "<td>" + data.records[i].courtroom + "</td>";
+                        text += "<td>" + data.records[i].telephone + "</td>";
+                        text += "<td>" + data.records[i].title + "</td>";
+                        text += "<td>" + data.records[i].status + "</td>";
+                        text += "<td>" + data.records[i].message + "</td>";
+                        text += "</tr>";
                     }
-                    else if (data.records[i].status == 2)
-                        color = "#808080";
-                    else color = "#ff0000"
-
-                    text += "<tr style=\"background-color:" + color + "\">";
-                    text += "<td>" + data.records[i].accused + "</td>";
-                    text += "<td>" + data.records[i].accuser + "</td>";
-                    text += "<td>" + data.records[i].court + "</td>";
-                    text += "<td>" + data.records[i].courtroom + "</td>";
-                    text += "<td>" + data.records[i].telephone + "</td>";
-                    text += "<td>" + data.records[i].title + "</td>";
-                    text += "<td>" + data.records[i].status + "</td>";
-                    text += "<td>" + data.records[i].message + "</td>";
-                    text += "</tr>";
+                    text += "</table>"
+                    $("#proc_info").html(text);
                 }
-                text += "</table>"
-                $("#proc_info").html(text);
             },
-	        error: function(err, message) {
+	        error: function(o, message) {
 	            alert(message);
 	        }
 	    });  
@@ -206,6 +236,7 @@ function test(com,grid)
     <form id="form1">
         <textarea id="usr_data" name="usr_data" style="height: 221px; width: 891px"></textarea><br />
         <input type="button" value="ok" id="btk_ok" />
+        <div id="proc_status"></div><br />
         <div id="proc_info"></div>
     </form>
     <table>
