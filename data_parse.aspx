@@ -63,8 +63,7 @@
                 char[] trimChars = { '\r', ' ', '.', '¡£', ';', '£»' };
                 string data = para.text
                     .Trim(trimChars)
-                    .Replace("\r\n", "")
-                    .Replace("\n", "");
+                    .Replace(" ", "");
                 
                 dri.Reset();
                 
@@ -88,6 +87,7 @@
             json += "{"
                 + "\"accused\":\"" + dri.accused + "\""
                 + ", \"accuser\":\"" + dri.accuser + "\""
+                + ", \"type\":\"" + dri.type + "\""
                 + ", \"court\":\"" + dri.court + "\""
                 + ", \"courtroom\":\"" + dri.court_room + "\""
                 + ", \"telephone\":\"" + dri.telephone + "\""
@@ -98,10 +98,10 @@
                     + "\"begin\":\"" + para.begin + "\""
                     + ", \"end\":\"" + para.end + "\""
                     + ", \"text\":\"" + para.text
-                        .Replace("\r\n", "<br>")
-                        .Replace("\n", "<br>") + "\""
+                       .Replace("\r\n", "<br>")
+                       .Replace("\n", "<br>") + "\""
                     + "}"
-                + "},\n";
+                + "}" + (i == count - 1 ? "" : ",") + "\n";
         }
         
         json += "]}";

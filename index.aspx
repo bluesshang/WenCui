@@ -21,11 +21,48 @@
 	<meta http-equiv="content-type" content="text/html; charset=iso-8859-1" />
 <title>Flexigrid</title>
 <link rel="stylesheet" type="text/css" href="css_grid/flexigrid.css" />
-<script type="text/javascript" src="js/jquery-1.2.3.pack.js"></script>
-<script type="text/javascript" src="js/flexigrid.js"></script>
+
+
+<!--jQuery References-->
+<script src="http://code.jquery.com/jquery-1.9.1.min.js" type="text/javascript"></script>
+<script src="http://code.jquery.com/ui/1.10.1/jquery-ui.min.js" type="text/javascript"></script>
+
+<!--Theme-->
+<link href="http://cdn.wijmo.com/themes/aristo/jquery-wijmo.css" rel="stylesheet" type="text/css" />
+
+<!--Wijmo Widgets CSS-->
+<link href="http://cdn.wijmo.com/jquery.wijmo-pro.all.3.20132.15.min.css" rel="stylesheet" type="text/css" />
+
+    <!-- Material Lite -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    <link rel="stylesheet" href="https://code.getmdl.io/1.1.1/material.indigo-red.min.css" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:regular,bold,italic,thin,light,bolditalic,black,medium&amp;lang=en" />
+    <script defer src="https://code.getmdl.io/1.1.1/material.min.js"></script>
+
+    <!-- Syntax Highlighter -->
+    <!-- <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.1.0/styles/default.min.css"> -->
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.1.0/styles/github.min.css">
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.1.0/highlight.min.js"></script>
+    <!-- Wijmo -->
+    <link rel="stylesheet" href="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/styles/vendor/wijmo.min.css" />
+    <link href="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/styles/vendor/wijmo.theme.material.min.css" rel="stylesheet" />
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.input.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.grid.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.grid.filter.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.chart.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.xlsx.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.grid.xlsx.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.odata.min.js"></script>
+    <script src="http://demos.wijmo.com/5/purejs/OlapIntro/OlapIntro/scripts/vendor/wijmo.olap.min.js"></script>
+    <script src="http://cdnjs.cloudflare.com/ajax/libs/jszip/2.5.0/jszip.min.js"></script>
+<!--Wijmo Widgets JavaScript-->
+<script src="http://cdn.wijmo.com/jquery.wijmo-open.all.3.20132.15.min.js" type="text/javascript"></script>
+<script src="http://cdn.wijmo.com/jquery.wijmo-pro.all.3.20132.15.min.js" type="text/javascript"></script>
+
 <script type="text/javascript">
 $(document).ready(function(){
-
+    /*
 	$("#flex1").flexigrid
 			(
 			{
@@ -86,14 +123,59 @@ $(document).ready(function(){
 			width: 700,
 			height: 255
 			}
-			);
+			);*/
 
+    var count = 10;
+    var data = [];
+
+    for (var i = 0; i < count ; i++) {
+        data.push({
+            序号: "00" + (i + 1).toString(),
+            ID号: "21601" + i.toString(),
+            英文名: "TingTao Ge",
+            中文名: "听涛阁",
+            最小楼层: 2,
+            最大楼层: 12,
+            状态: true,
+            日期: new Date(2014, i % 12, i % 28),
+        });
+    }
+    var cv = new wijmo.collections.CollectionView(data);
+
+    my_rawGrid = new wijmo.grid.FlexGrid('#my_rawGrid', {
+        showSelectedHeaders: 'All',
+        itemsSource: null
+            //new wijmo.odata.ODataCollectionView(
+            //'http://services.odata.org/V4/Northwind/Northwind.svc/',
+            //'Order_Details_Extendeds'),
+    });
+
+    my_rawGridFilter = new wijmo.grid.filter.FlexGridFilter(my_rawGrid);
+
+    $('#dialog').wijdialog({
+        autoOpen: true,
+        modal: true,
+        captionButtons: {
+            refresh: { visible: false }
+        },
+        expandingAnimation: { effect: "puff", duration: 300, easing: "easeOutExpo" }
+    });
+
+    $("#wijeditor").wijeditor({
+        editorMode: "split",
+        mode: "simple",
+        //simpleModeCommands: ["Bold", "Italic", "Link", "BlockQuote", "StrikeThrough", "InsertDate", "InsertImage", "NumberedList", "BulletedList", "InsertCode"]
+        simpleModeCommands: ["Bold", "Italic", "FontName", "FontSize", "InsertImage", "NumberedList", "BulletedList", "Undo"]
+    });
+
+    var parse_records = [];
+    
 
 	$("#btk_ok").bind('click', function () {
 	    //alert($("#form1").serialize());
 	    $("#proc_info").html("");
 	    $("#proc_status").html("committing data ...");
-
+	    
 	    var pb_timer = setInterval(function () {
 	        var text = "";
 	        $.ajax({
@@ -114,7 +196,7 @@ $(document).ready(function(){
 	                $("#proc_status").html(message);
 	            }
 	        });
-	    }, 1000);
+	    }, 600);
 
 	    $.ajax({  
 	        type:'post',      
@@ -132,9 +214,11 @@ $(document).ready(function(){
                     var count = data.records.length;
                     for (i = 0; i < count; i++) {
                         //alert(data.records[i].accused);
-                        var para = data.records[i].para;
+                        var item = data.records[i];
+                        var para = item.para;
+                        /*
                         text += "<tr>";
-                        text += "<td colspan=8>[" + para.begin + "," + para.end + "]" + para.text + "</td>";
+                        text += "<td colspan=9>[" + para.begin + "," + para.end + "]" + para.text + "</td>";
                         text += "</tr>";
 
                         if (data.records[i].status == 0) {
@@ -142,12 +226,12 @@ $(document).ready(function(){
                             if (data.records[i].accused == ""
                                 || data.records[i].accuser == "")
                                 color = "#ffff00";
-                        }
-                        else if (data.records[i].status == 2)
+                        } else if (data.records[i].status == 2)
                             color = "#808080";
                         else color = "#ff0000"
 
                         text += "<tr style=\"background-color:" + color + "\">";
+                        text += "<td>" + data.records[i].type + "</td>";
                         text += "<td>" + data.records[i].accused + "</td>";
                         text += "<td>" + data.records[i].accuser + "</td>";
                         text += "<td>" + data.records[i].court + "</td>";
@@ -156,10 +240,26 @@ $(document).ready(function(){
                         text += "<td>" + data.records[i].title + "</td>";
                         text += "<td>" + data.records[i].status + "</td>";
                         text += "<td>" + data.records[i].message + "</td>";
-                        text += "</tr>";
+                        text += "</tr>";*/
+                        parse_records.push({
+                            "业务类型": item.type,
+                            "accused": item.accused,
+                            "accuser": item.accuser,
+                            "court": item.court,
+                            "courtroom": item.courtroom,
+                            "telephone": item.telephone,
+                            "title": item.title,
+                            "status": item.status,
+                            "message": item.message,
+                        });
                     }
-                    text += "</table>"
-                    $("#proc_info").html(text);
+                    //////text += "</table>"
+                    //////$("#proc_info").html(text);
+
+                    my_rawGrid.itemsSource = new wijmo.collections.CollectionView(data.records);
+                    my_rawGrid.itemsSource.pageSize = 20;
+                    my_rawGrid.itemsSource.moveToNextPage();
+                    //my_rawGrid.itemsSource.pageIndex = 3;
                 }
             },
 	        error: function(o, message) {
@@ -232,15 +332,31 @@ function test(com,grid)
 %>
 <br />
 <a href="#">Download this example</a>
-
+    <div id="dialog" title="Login ...">      
+        username:<input type="text" name="username" />
+</div>
     <form id="form1">
         <textarea id="usr_data" name="usr_data" style="height: 221px; width: 891px"></textarea><br />
         <input type="button" value="ok" id="btk_ok" />
         <div id="proc_status"></div><br />
         <div id="proc_info"></div>
+
+        
     </form>
-    <table>
-        <tr style="background-color:#c5ede8"></tr>
+
+    <table border="1" width="80%" align="center">
+        <tr>
+            <td>
+                <div id="my_rawGrid"></div>
+            </td>
+        </tr>
     </table>
+
+<textarea id="wijeditor" style="width: 756px; height: 475px;">
+    <h2>Blippity Fling-Flang</h2>
+    <p>Ho ha meepfloo hum nip zongle, yap izzle ho noodle da. Doo twaddle zap? dilznoofus Jackson. 
+                Loo cake blungflib. Yip dingle ha? bang Mr. Slav. Flab zap dingely dizzleshrubbery. Quabble ha 
+        blop da shnuzzle-slap!! Funk hum zang shnuzzle? Crongle loo twaddling hizzywoogle.</p>
+<p><a href="http://bff.orangehairedboy.com/">Blippity Fling-Flang by orangehairedboy</a></p>
 </body>
 </html>

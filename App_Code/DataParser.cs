@@ -30,6 +30,10 @@ public enum NoticeType : int
     OPENING, // 开庭
     SENTENCE, // 判决
     CORRECTION, // 更正
+    CLAIMS, // 催告
+    MISSING, // 失踪
+    EXECUTE, // 执行
+    APPEAL, // 上诉
     UNKNOWN
 }
 
@@ -68,6 +72,7 @@ public class DataRecordItem
         clerk = "";
         memo = "";
         case_title = "";
+        type = NoticeType.UNKNOWN;
     }
     public void MakeJson()
     {
@@ -100,13 +105,105 @@ public class StringHitPos
         this.hitlen = hitlen;
     }
 };
+
+public class DataParagraph
+{
+    public string text;
+    public int begin, end;
+};
+
+public class DataParagrapher
+{
+    //public DataParagraph[] paragraphs;
+    public List<DataParagraph> paragraphs = new List<DataParagraph>();
+
+    public int DoParagraph(string data)
+    {
+        int begin = 0, end;
+
+        data = data + '\n';
+
+        for (; ; )
+        {
+            end = data.IndexOf('\n', begin);
+            if (end == -1)
+                break;
+
+            if (end > begin)
+            {
+                DataParagraph dp = new DataParagraph();
+                dp.begin = begin;
+                dp.end = end;
+                dp.text = data.Substring(begin, end - begin)
+                    .Replace("\r", "");
+                if (paragraphs.Count > 0
+                    && dp.text.Length < 100
+                    && DataParser.LastIndexOfAny(dp.text, "人民法院|委员会|法院").pos != -1)
+                {
+                    paragraphs[paragraphs.Count - 1].text =
+                        paragraphs[paragraphs.Count - 1].text + "\n" + dp.text;
+                }
+                else if (dp.text.Length > 80) paragraphs.Add(dp);
+            }
+
+            begin = end + 1;
+        }
+
+        return paragraphs.Count;
+    }
+}
 public abstract class DataParser
 {
+    public static string PRESET_CASE_TITLE = "保证合同纠纷|民间借贷纠纷|物业服务合同纠纷|买卖合同纠纷|特许经营合同纠纷|房屋租赁合同纠纷|金融借款合同纠纷|借款合同纠纷|合同纠纷|交通事故责任纠纷";
+    public static string PRESET_CASE = @"([一二三四五六七八九两]|\d+)案";
     public virtual bool Parse(string data, ref DataRecordItem dri)
     {
+        string[] part1 = {
+            @"(?<accused>.+?)[：:]*(本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|原告)(?<accuser>.+?)(诉被告你们|诉被告|诉你方|诉你们|与被告|与你司|与你们|与你及|诉你及|诉你与|诉你|与你|诉|与)(?<case_title>.+?)([一二三四五六七八九两]|\d+)案",
+            @"(本院定于|本院于)(.+)原告(?<accuser>.+?)(诉被告|诉你方|诉你们|诉你|诉)(?<accused>.+?)(?<case_title>" + PRESET_CASE_TITLE + @")*" + PRESET_CASE,
+            @"(?<accused>.+?)[：:]*本院受理(?<accuser>.+?)及你(?<case_title>.+?)" + PRESET_CASE,
+            @"(?<accused>.+?)[：:]*本院定于(.+?)原告(?<accuser>.+?)(诉被告|诉你方|诉你们|诉你|诉)(.+)(?<case_title>" + PRESET_CASE_TITLE + ")",
+            @"(?<accused>.+?)[：:]*本院定于(.+?)(原告|在(.+?)公开审理|公开审理)(?<accuser>.+?)(诉被告|诉你方|诉你们|诉你|诉)(?<case_title>.+?)" + PRESET_CASE,
+            @"(?<accused>.+?)[：:](?<accuser>.+?)(分别起诉|诉被告|诉你方|诉你们|诉你|与你|诉)(?<case_title>.+?)" + PRESET_CASE,
+        };
+
+        Match m = Expr(data, part1);
+        if (m != null)
+        {
+            dri.accused = m.Groups["accused"].Value;
+            dri.accuser = m.Groups["accuser"].Value;
+            dri.case_title = m.Groups["case_title"].Value;
+            // simplify the case title if any
+            SimplfyCaseTitle(data, ref dri);
+        }
+
+        int t = dri.accuser.IndexOf("原告");
+        if (t != -1)
+            dri.accuser = dri.accuser.Substring(t + 2);
+
+        dri.court_room = ExtractCourtRoom(data);
+
+        dri.court = ExtractCourt(data);
+
+        dri.telephone = ExtractTelephone(data);
+
         return false;
     }
 
+    public static void SimplfyCaseTitle(string data, ref DataRecordItem dri)
+    {
+        if (dri.case_title == "")
+            dri.case_title = data; // guess from the whole string
+
+        int pos = dri.case_title.IndexOf(dri.accused);
+        if (pos != -1)
+            dri.case_title = dri.case_title.Substring(pos + dri.accused.Length);
+        StringHitPos hp = IndexOfAny(dri.case_title, PRESET_CASE_TITLE);
+        if (hp.pos != -1)
+        {   // use the preset case title if any
+            dri.case_title = dri.case_title.Substring(hp.pos, hp.hitlen);
+        }
+    }
     public static StringHitPos IndexOfAny(string data, string anyOf, int startPos = 0)
     {
         string[] opts = anyOf.Split('|');
@@ -176,7 +273,12 @@ public abstract class DataParser
             throw new DataParseException(ParseError.TooShort, "信息太少，无法自动解析。");
 
         PredefinedTypes[] types = {
-            new PredefinedTypes(NoticeType.OPENING, "(开庭审理|开庭受理|公开审理|在(.+)开庭[.。;；,，])"),
+            new PredefinedTypes(NoticeType.OPENING, @"(开庭审理|开庭受理|公开审理|逾期将依法判决|在(.+)开庭[.。;；,，)）(（]|开庭时间(.+)(开庭地点|地点)(.+))"),
+            new PredefinedTypes(NoticeType.CLAIMS, @"(公示催告|催告)"),
+            new PredefinedTypes(NoticeType.MISSING, @"(申请(.+)失踪)"),
+            new PredefinedTypes(NoticeType.EXECUTE, @"(申请执行|立案执行)"),
+            new PredefinedTypes(NoticeType.APPEAL, @"(上诉人(.+?)提起上诉|判决后(.+)提出上诉|因(.+?)不服该案判决(.+)提出上诉)"),
+            new PredefinedTypes(NoticeType.SENTENCE, @"(不服本判决|不服上述判决|如不服判决|判决书)"),
         };
 
         for (int i = 0; i < types.Length; i++)
@@ -213,6 +315,16 @@ public abstract class DataParser
         {
             case NoticeType.OPENING:
                 return new OpeningParser();
+            case NoticeType.SENTENCE:
+                return new SentenceParser();
+            case NoticeType.CLAIMS:
+                return new ClaimsParser();
+            case NoticeType.MISSING:
+                return new MissingParser();
+            case NoticeType.EXECUTE:
+                return new ExecuteParser();
+            case NoticeType.APPEAL:
+                return new AppealParser();
 
             case NoticeType.UNKNOWN:
             default:
@@ -226,7 +338,12 @@ public abstract class DataParser
     }
     public static string ExtractTelephone(string data)
     {
-        StringHitPos posHit = IndexOfAny(data, "联系电话：|联系电话:|联系电话|电话：|电话:");
+        Regex reg = new Regex(@"电话[:：是为]*(?<telphone>.+?)[.;。；)）]");
+        Match m = reg.Match(data);
+        //for (int i = 0; i < m.Groups.Count; i++)
+        //{ }
+        return m.Groups["telphone"].Value;
+        /*StringHitPos posHit = IndexOfAny(data, "联系电话：|联系电话:|联系电话|电话：|电话:");
 
         if (posHit.pos == -1)
             return "";
@@ -248,20 +365,19 @@ public abstract class DataParser
                 tel += c;
             else break;
         }
-        return tel;
+        return tel;*/
     }
 
     public static string ExtractCourt(string data)
     {
-        StringHitPos hp = LastIndexOfAny(data, "人民法院|委员会|法院");
-
-        if (hp.pos == -1)
-            throw new DataParseException("未能正确解析\"法院\"字段：没有找到相应的关键字。");
-
-        char[] delimiterChars = { '。', '\n', '.', ';', '；', ',', '，' };
-        int posBegin = data.LastIndexOfAny(delimiterChars, hp.pos);
+        char[] delimiterChars = { '\n', '。', '.', ';', '；', ',', '，' };
+        int posBegin = data.LastIndexOfAny(delimiterChars);
         if (posBegin == -1)
             throw new DataParseException("未能正确解析\"法院\"字段。");
+
+        StringHitPos hp = IndexOfAny(data, "人民法院|委员会|法院", posBegin + 1);
+        if (hp.pos == -1)
+            throw new DataParseException("未能正确解析\"法院\"字段：没有找到相应的关键字。");
 
         return data.Substring(posBegin + 1, hp.pos + hp.hitlen - (posBegin + 1))
             .Trim(delimiterChars);
@@ -269,76 +385,16 @@ public abstract class DataParser
 
     public static string ExtractCourtRoom(string data)
     {
-        string court_room = ExtractExpr(data, "在(.+?)(公开开庭审理|开庭审理|公开审理|开庭)", 1);
-        if (court_room == "")
-        {
-            court_room = ExtractExpr(data, "开庭时间(.+?)(地点是|地点为|地点)(.+?)[。|.|;|；|）|)]", 3);
-        }
-
-        //char[] trimChars = { '(', '（', ')', '）', ':', '：' };
-        return court_room;//.TrimEnd(trimChars).TrimStart(trimChars);
-    }
-    public static string ExtractExpr(string data, string expr, int idx)
-    {
-        Regex reg = new Regex(expr);
-
-        Match m = reg.Match(data);
-        if (m.Groups.Count > idx)
-            return m.Groups[idx].Value;
-
-        return "";
-    }
-    public static string Extract(string data, string beginExpr, string endExpr, bool optional = false)
-    {
-        StringHitPos pos1, pos2;
-        int begin, end, offset = 0;
-        int keypos = 0;
-
-        for (; ; )
-        {
-            pos1 = IndexOfAny(data, beginExpr, keypos);
-            if (pos1.pos == -1)
-                break;
-            keypos = pos1.pos + pos1.hitlen;
-
-            if (endExpr[0] == '^')
-            {   // backforward match
-                string endExprTmp = endExpr.Substring(1); // trim the '^'
-                if (endExprTmp.Length == 0)
-                    begin = 0;
-                else
-                {
-                    pos2 = LastIndexOfAny(data, endExprTmp, pos1.pos);
-                    begin = pos2.pos;
-                    offset = pos2.hitlen;
-                }
-                end = pos1.pos;
-            }
-            else
-            {
-                pos2 = IndexOfAny(data, endExpr, pos1.pos);
-                begin = pos1.pos;
-                offset = pos1.hitlen;
-                end = pos2.pos;
-            }
-
-            if (begin != -1 && end != -1
-                && begin + offset <= end)
-            {
-                return data.Substring(begin + offset, end - (begin + offset)).Trim();
-            }
-        }
-
-        if (optional == true)
+        string[] exprs = {
+            "在(?<court_room>.+?)(公开开庭审理|开庭审理|公开审理|开庭)",
+            "开庭时间(.+?)地点(是|为)*[:：]*(?<court_room>.+?)[。.;；）)]"
+        };
+        Match m = Expr(data, exprs);
+        if (m == null)
             return "";
-
-        throw new DataParseException(ParseError.Unrecognize, "未能解析表达式：{" + beginExpr + "," + endExpr + "}，请确定输入是否符合常用格式。");
+        return m.Groups["court_room"].Value;//.TrimEnd(trimChars).TrimStart(trimChars);
     }
-}
-
-public class OpeningParser : DataParser
-{
-    Match Expr(string data, string [] exprs)
+    public static Match Expr(string data, string[] exprs)
     {
         for (int i = 0; i < exprs.Length; i++)
         {
@@ -350,14 +406,87 @@ public class OpeningParser : DataParser
 
         return null;
     }
+}
+
+public class OpeningParser : DataParser
+{
+
     public override bool Parse(string data, ref DataRecordItem dri)
     {
+        bool ret = base.Parse(data, ref dri);
+
+        dri.type = NoticeType.OPENING;
+
+        return true;
+    }
+}
+
+public class SentenceParser : DataParser
+{
+
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        bool ret = base.Parse(data, ref dri);
+
+        dri.type = NoticeType.SENTENCE;
+
+        return true;
+    }
+}
+
+public class ClaimsParser : DataParser
+{
+
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        //bool ret = base.Parse(data, ref dri);
         string[] part1 = {
-            @"(?<accused>.+)(：|:)(本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|原告)(?<accuser>.+?)(诉被告你们|诉被告|诉你方|诉你们|与被告|与你司|与你们|与你及|诉你及|诉你与|诉你|与你|诉|与)(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
-            @"(?<accused>.+)(：|:)(?<accuser>.+?)(诉你方|诉你们|诉你|与你|诉)(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
-            @"(本院定于|本院于)(.+)原告(?<accuser>.+)(诉被告|诉你方|诉你们|诉你|诉)(?<accused>.+)([一二三四五六七八九]|\d+)案",
-            @"(?<accused>.+)(：|:)本院受理(?<accuser>.+?)及你(?<case_title>.+?)([一二三四五六七八九]|\d+)案",
-            @"(?<accused>.+)(：|:)本院定于(.+?)原告(?<accuser>.+?)诉被告(.+)(?<case_title>保证合同纠纷|民间借贷纠纷|物业服务合同纠纷|买卖合同纠纷)"
+            @"申请人(?<accuser>.+?)(的)*(公示催告申请|催告申请|申请)",
+            @"申请人(?<accuser>.+?)因(.+?)申请",
+        };
+
+        Match m = Expr(data, part1);
+
+        dri.accused = "公示催告";
+        dri.accuser = m.Groups["accuser"].Value;
+        dri.court = ExtractCourt(data);
+        dri.telephone = ExtractTelephone(data);
+
+        dri.type = NoticeType.CLAIMS;
+
+        return true;
+    }
+}
+
+public class MissingParser : DataParser
+{
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        //bool ret = base.Parse(data, ref dri);
+        string[] part1 = {
+            @"(?<accuser>.+?)(申请宣告|申请)(?<accused>.+?)失踪",
+        };
+
+        Match m = Expr(data, part1);
+
+        dri.accused = m.Groups["accused"].Value;
+        dri.accuser = m.Groups["accuser"].Value;
+        dri.court = ExtractCourt(data);
+        dri.telephone = ExtractTelephone(data);
+
+        dri.type = NoticeType.MISSING;
+
+        return true;
+    }
+}
+public class ExecuteParser : DataParser
+{
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        //bool ret = base.Parse(data, ref dri);
+        string[] part1 = {
+            @"(?<accused>.+?)[:：]*本院受理(申请执行人)*(?<accuser>.+?)申请执行(?<case_title>.+?)一案",
+            @"申请执行人(?<accuser>.+?)与被执行人(?<accused>.+?)(?<case_title>" + PRESET_CASE_TITLE + ")",
         };
 
         Match m = Expr(data, part1);
@@ -365,48 +494,46 @@ public class OpeningParser : DataParser
         {
             dri.accused = m.Groups["accused"].Value;
             dri.accuser = m.Groups["accuser"].Value;
-            //if (dri.accused == "" || dri.accuser == "")
-            //    throw new DataParseException(ParseError.GeneralError, "未能自动解析\"原告\"或\"被告信息\"");
             dri.case_title = m.Groups["case_title"].Value;
+            SimplfyCaseTitle(data, ref dri);
         }
-        /*
-        try
-        {
-            dri.accused = Extract(data, "本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|本院定于|本院于", "^");
-            dri.accused = dri.accused.Replace("：", "");
-
-            dri.accuser = Extract(data, "本院受理原告|本委受理原告|本院已受理|本院受理|我院受理|本委受理|本院定于|本院于", "诉|与");
-
-            dri.case_title = Extract(data, "诉被告你们|诉被告|诉你们|诉你方|诉你|及你们|与你司|与你们|与你|诉", "一案", true);
-        }
-        catch (DataParseException e)
-        {
-            Regex reg = new Regex("(?<accused>.+)(：|:)(?<accuser>.+?)(诉你方|诉你们|诉你|诉)(?<case_title>.+?)一案");
-
-            Match m = reg.Match(data);
-            if (m.Groups.Count < 6)
-                throw e;
-
-            dri.accused = m.Groups["accused"].Value;
-            dri.accuser = m.Groups["accuser"].Value;
-            dri.case_title = m.Groups["case_title"].Value;
-        }*/
-
-        int t = dri.accuser.IndexOf("原告");
-        if (t != -1)
-            dri.accuser = dri.accuser.Substring(t + 2);
-
-        dri.court_room = ExtractCourtRoom(data);
-
         dri.court = ExtractCourt(data);
-
-        dri.telephone = ExtractTelephone(data);
-
-        dri.type = NoticeType.OPENING;
+        dri.telephone = ExtractTelephone(data); 
+        
+        dri.type = NoticeType.EXECUTE;
 
         return true;
     }
 }
+public class AppealParser : DataParser
+{
+    public override bool Parse(string data, ref DataRecordItem dri)
+    {
+        //bool ret = base.Parse(data, ref dri);
+        string[] part1 = {
+            @"(?<accused>.+?)[:：]上诉人(?<accuser>.+?)就(?<case_title>.+?)提起上诉",
+            @"(?<accused>.+?)[:：](.+)上诉人(?<accuser>.+?)就(?<case_title>.+?)提起上诉",
+            @"(?<accused>.+?)[:：](.+)判决后被告(?<accuser>.+?)提出上诉",
+            @"(?<accused>.+?)[:：](.+)因(?<accuser>.+?)不服该案判决(.+)提出上诉"
+        };
+
+        Match m = Expr(data, part1);
+        if (m != null)
+        {
+            dri.accused = m.Groups["accused"].Value;
+            dri.accuser = m.Groups["accuser"].Value;
+            dri.case_title = m.Groups["case_title"].Value;
+            SimplfyCaseTitle(data, ref dri);
+        }
+        dri.court = ExtractCourt(data);
+        dri.telephone = ExtractTelephone(data); 
+        
+        dri.type = NoticeType.APPEAL;
+
+        return true;
+    }
+}
+
 
 public class UnknownParser : DataParser
 {
@@ -416,48 +543,3 @@ public class UnknownParser : DataParser
     }
 }
 
-public class DataParagraph
-{
-    public string text;
-    public int begin, end;
-};
-
-public class DataParagrapher
-{
-    //public DataParagraph[] paragraphs;
-    public List<DataParagraph> paragraphs = new List<DataParagraph>();
-
-    public int DoParagraph(string data)
-    {
-        int begin = 0, end;
-
-        data = data + '\n';
-
-        for (; ; )
-        {
-            end = data.IndexOf('\n', begin);
-            if (end == -1)
-                break;
-
-            if (end > begin)
-            {
-                DataParagraph dp = new DataParagraph();
-                dp.begin = begin;
-                dp.end = end;
-                dp.text = data.Substring(begin, end - begin)
-                    .Replace("\r", "");
-                if (paragraphs.Count > 0
-                    && dp.text.Length < 100
-                    && DataParser.LastIndexOfAny(dp.text, "人民法院|委员会|法院").pos != -1)
-                {
-                    paragraphs[paragraphs.Count - 1].text =
-                        paragraphs[paragraphs.Count - 1].text + "\n" + dp.text;
-                } else paragraphs.Add(dp);
-            }
-
-            begin = end + 1;
-        }
-
-        return paragraphs.Count;
-    }
-}
